@@ -1,7 +1,7 @@
 /****************************************************************
 * ESP8266 TCP GENERIC LIBRARY
 *
-* FOR NOW ONLY SUPPORTS CLIENT MODE (1 MAX)
+* FOR NOW ONLY SUPPORTS SINGLE CONNECTION
 *
 * DECEMBER 26 2017
 *
@@ -41,7 +41,7 @@ void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SetDnsServer(char num_dns, ip_addr_t*
 void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SetCallbackFunctions(void (*tcp_con_cb)(void*),
 															    void (*tcp_discon_cb)(void*),
 															    void (tcp_send_cb)(void*),
-															    void (tcp_recv_cb)(void*, char*, unsigned short),
+															    void (tcp_recv_cb)(char*, unsigned short),
                                                                 void (*user_dns_cb_fn)(ip_addr_t*));
 
 //GET PARAMETERS FUNCTIONS
@@ -49,7 +49,7 @@ void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SetCallbackFunctions(void (*tcp_con_c
 
 //CONTROL FUNCTIONS
 void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_ResolveHostName(void);
-void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SendAndGetReply(char* data, uint16_t len);
+void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SendAndGetReply(uint8_t* data, uint16_t len);
 
 //END FUNCTION PROTOTYPES/////////////////////////////////
 
