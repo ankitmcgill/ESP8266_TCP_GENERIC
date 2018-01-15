@@ -6,7 +6,9 @@ static uint8_t s_esp8266_tcp_generic_debug;
 
 //TCP RELATED
 static struct espconn s_esp8266_tcp_generic_espconn;
+static struct espconn *s_esp8266_tcp_generic_connected;
 static struct _esp_tcp s_esp8266_tcp_generic_user_tcp;
+static bool s_tcp_connected;
 
 //IP / HOSTNAME RELATED
 static const char* s_esp8266_tcp_generic_host_name;
@@ -78,6 +80,8 @@ void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_Initialize(const char* hostname,
     //SET DEBUG ON
     s_esp8266_tcp_generic_debug = 1;
     
+	s_tcp_connected = false;
+
     os_printf("ESP8266 TCP_GENERIC : Initialized\n");
 }
 
@@ -157,16 +161,11 @@ void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_ResolveHostName(void)
 	(*s_esp8266_tcp_generic_dns_cb_function)(&s_esp8266_tcp_generic_resolved_host_ip);
 }
 
-void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SendAndGetReply(uint8_t* data, uint16_t len)
+void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_Connect(void)
 {
-    //SEND TCP DATA + GET REPLY
+	//CONNECT TO TCP HOST:PORT
 
-    //COPY DATA TO LOCAL BUFFER
-    memset(s_esp8266_tcp_generic_buffer, 0, s_esp8266_tcp_generic_buffer_size);
-    os_memcpy((uint8_t*)s_esp8266_tcp_generic_buffer, (uint8_t*)data, len);
-	s_esp8266_tcp_generic_buffer_data_len = len;
-
-    //START TCP CONNECT PROCESS
+	//START TCP CONNECT PROCESS
 	s_esp8266_tcp_generic_espconn.proto.tcp = &s_esp8266_tcp_generic_user_tcp;
 	s_esp8266_tcp_generic_espconn.type = ESPCONN_TCP;
 	s_esp8266_tcp_generic_espconn.state = ESPCONN_NONE;
@@ -181,6 +180,34 @@ void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SendAndGetReply(uint8_t* data, uint16
     espconn_connect(&s_esp8266_tcp_generic_espconn);
 }
 
+void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SendAndGetReply(uint8_t* data, uint16_t len)
+{
+    //SEND TCP DATA + GET REPLY
+
+    //COPY DATA TO LOCAL BUFFER
+    memset(s_esp8266_tcp_generic_buffer, 0, s_esp8266_tcp_generic_buffer_size);
+    os_memcpy((uint8_t*)s_esp8266_tcp_generic_buffer, (uint8_t*)data, len);
+	s_esp8266_tcp_generic_buffer_data_len = len;
+
+	if(s_tcp_connected)
+	{
+		//SEND DATA IN THE LOCAL BUFFER
+		espconn_sent(s_esp8266_tcp_generic_connected, s_esp8266_tcp_generic_buffer, s_esp8266_tcp_generic_buffer_data_len);
+	}
+}
+
+void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_Disonnect(void)
+{
+	//DISCONNECT FROM TCP HOST:PORT
+
+	if(s_tcp_connected)
+	{
+		espconn_disconnect(s_esp8266_tcp_generic_connected);
+
+		//STOP TCP REPLY TIMER
+		os_timer_disarm(&s_esp8266_tcp_generic_tcp_timeout_timer);
+	}
+}
 
 void ICACHE_FLASH_ATTR s_esp8266_tcp_generic_dns_timer_cb(void* arg)
 {
@@ -272,14 +299,13 @@ void ICACHE_FLASH_ATTR s_esp8266_tcp_generic_connect_cb(void* arg)
 	}
 
 	//GET THE NEW USER TCP CONNECTION
-	struct espconn *pespconn = arg;
+	s_esp8266_tcp_generic_connected = arg;
 
 	//REGISTER SEND AND RECEIVE CALLBACKS
-	espconn_regist_sentcb(pespconn, s_esp8266_tcp_generic_send_cb);
-	espconn_regist_recvcb(pespconn, s_esp8266_tcp_generic_receive_cb);
+	espconn_regist_sentcb(s_esp8266_tcp_generic_connected, s_esp8266_tcp_generic_send_cb);
+	espconn_regist_recvcb(s_esp8266_tcp_generic_connected, s_esp8266_tcp_generic_receive_cb);
 
-	//SEND DATA IN THE LOCAL BUFFER
-	espconn_sent(pespconn, s_esp8266_tcp_generic_buffer, s_esp8266_tcp_generic_buffer_data_len);
+	s_tcp_connected = true;
 
 	//CALL USER CALLBACK IF NOT NULL
 	if(s_esp8266_tcp_generic_tcp_conn_cb != NULL)
@@ -296,6 +322,8 @@ void ICACHE_FLASH_ATTR s_esp8266_tcp_generic_disconnect_cb(void* arg)
 	{
 	    os_printf("ESP8266 TCP_GENERIC : TCP DISCONNECTED\n");
 	}
+
+	s_tcp_connected = false;
 
 	//CALL USER CALLBACK IF NOT NULL
 	if(s_esp8266_tcp_generic_tcp_discon_cb != NULL)
@@ -337,8 +365,8 @@ void ICACHE_FLASH_ATTR s_esp8266_tcp_generic_receive_cb(void* arg, char* pusrdat
 	    os_printf("ESP8266 TCP_GENERIC : TCP DATA RECEIVED\n");
 	}
 
-	//DISCONNECT THE TCP CONNECTION TO END THE CURRENT TRANSACTION
-	espconn_disconnect(&s_esp8266_tcp_generic_espconn);
+	//STOP TCP REPLY TIMER
+	os_timer_disarm(&s_esp8266_tcp_generic_tcp_timeout_timer);
 
 	//PROCESS INCOMING TCP DATA
     //SEND TO USER RECEIVE CB FUNCTION
@@ -359,8 +387,8 @@ void ICACHE_FLASH_ATTR s_esp8266_tcp_generic_receive_timeout_cb(void)
 		os_printf("ESP8266 TCP_GENERIC : TCP reply timeout !\n");
 	}
 
-	//DISCONNECT THE TCP CONNECTION TO END THE CURRENT TRANSACTION
-	espconn_disconnect(&s_esp8266_tcp_generic_espconn);
+	//STOP TCP REPLY TIMER
+	os_timer_disarm(&s_esp8266_tcp_generic_tcp_timeout_timer);
 
 	////CALL USER SPECIFIED DATA RECEIVE CALLBACK WITH NULL ARGUMENT
 	//CALL USER CALLBACK IF NOT NULL

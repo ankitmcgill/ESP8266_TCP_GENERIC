@@ -49,8 +49,9 @@ void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SetCallbackFunctions(void (*tcp_con_c
 
 //CONTROL FUNCTIONS
 void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_ResolveHostName(void);
+void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_Connect(void);
 void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_SendAndGetReply(uint8_t* data, uint16_t len);
-
+void ICACHE_FLASH_ATTR ESP8266_TCP_GENERIC_Disonnect(void);
 //END FUNCTION PROTOTYPES/////////////////////////////////
 
 #endif
